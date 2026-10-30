@@ -1,0 +1,4 @@
+.git
+.opencode
+deploy/.env
+*.md
