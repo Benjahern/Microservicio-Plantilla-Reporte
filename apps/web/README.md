@@ -1,40 +1,37 @@
 # Frontend – Plantillas de reporte
 
-Vue 3 (Composition API, `<script setup>`) + Vue Router + Vite. Sin librerías de UI.
+Vue 3 (Composition API y `<script setup>`) y Vite.
 
 ## Desarrollo
 
 ```bash
 cd apps/web
-npm install
+npm ci
 npm run dev        # http://localhost:5173
 ```
 
-Vite redirige `/api` a `http://localhost:8080` (la API no tiene CORS). Para otra dirección:
-`VITE_API_TARGET=http://host:puerto npm run dev`.
+Vite dirige `/api` a `http://localhost:5100`. Configura `BACKEND_URL` para un puerto distinto.
 
 ## Con Docker
 
-Desde `apps/api`:
+Desde la raíz:
 
 ```bash
-docker compose --env-file deploy/.env -f deploy/compose.yaml up --build
+docker compose up -d --build
 ```
 
-Frontend en `http://localhost:8081` (nginx sirve la SPA y hace proxy de `/api` hacia el servicio `api`).
+El frontend queda en `http://localhost:5101`. Nginx sirve la aplicación y dirige `/api` al backend.
 
 ## Uso
 
-Se ingresa con uno de los tokens definidos en `AUTH_IDENTITIES_JSON` (`deploy/.env`).
-El perfil `lector` solo consulta; si intenta crear/editar/eliminar, la API responde 403 y se muestra el mensaje.
+Usa `demo-lector`, `demo-editor` o `demo-admin` para trabajar con el repositorio simulado de Hito 1.
 
 ## Estructura
 
 ```
 src/
-  api/client.js              fetch + token Bearer + manejo de errores
-  composables/useAuth.js     token en sessionStorage
-  composables/usePlantillas.js  listado, detalle, versiones, crear/actualizar/eliminar
-  views/                     Login, Listado, Detalle (con historial), Formulario
-  components/                AppHeader, AlertMessage, PaginationBar
+  shared/http-client.api.ts  Fetch, identidad simulada y errores
+  types/contract.gen.ts     Tipos y rutas generados desde OpenAPI
+  components/              Listado, editor e historial
+  dev-app/                  Aplicación de desarrollo
 ```

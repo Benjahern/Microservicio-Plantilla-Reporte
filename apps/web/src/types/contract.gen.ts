@@ -119,9 +119,7 @@ export interface components {
             [key: string]: unknown;
         };
         NumeroVersion: number;
-        /** @default 1 */
         Pagina: number;
-        /** @default 20 */
         Limite: number;
         /** Format: date-time */
         Fecha: string;

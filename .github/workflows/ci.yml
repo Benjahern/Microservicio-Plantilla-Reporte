@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.5"
+          go-version: "1.26.11"
           cache-dependency-path: apps/api/go.sum
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -59,7 +59,10 @@ jobs:
         with:
           fetch-depth: 0
       - name: Gitleaks (historial)
-        run: docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.28.0 git --redact .
+        run: >-
+          docker run --rm -v "$PWD:/repo:ro" -w /repo
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo
+          ghcr.io/gitleaks/gitleaks:v8.28.0 git --redact --log-opts="--all" .
       - name: Trivy (repositorio)
         run: docker run --rm -v "$PWD:/repo" "$TRIVY_IMAGE" fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /repo
 
