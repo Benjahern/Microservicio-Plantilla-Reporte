@@ -31,11 +31,18 @@ cd "$tree/apps/api"
 go build -cover -covermode=atomic -o "$E2E_API_BIN" ./cmd/api
 
 if [[ "$mode" == sin-proteccion ]]; then
-  TZ=UTC go test -count=1 -v ./e2e
+  TZ=UTC go test -count=1 -v ./e2e -run '^TestConflictoConcurrente$'
   exit
 fi
 
-for zone in UTC Pacific/Auckland; do
+zones=(UTC Pacific/Auckland)
+if [[ $# -ge 2 ]]; then
+  case "$2" in
+    UTC|Pacific/Auckland) zones=("$2") ;;
+    *) printf 'Zona no contemplada: %s\n' "$2" >&2; exit 2 ;;
+  esac
+fi
+for zone in "${zones[@]}"; do
   printf 'E2E con TZ=%s\n' "$zone"
   TZ="$zone" go test -count=1 -v ./e2e
 done

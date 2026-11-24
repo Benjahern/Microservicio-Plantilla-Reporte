@@ -12,8 +12,50 @@ env:
   TEST_DATABASE_URL: postgres://plantillas@127.0.0.1:5432/plantillas?sslmode=disable
 
 jobs:
+  e2e:
+    name: E2E (${{ matrix.tz }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tz: UTC
+            artifact: utc
+          - tz: Pacific/Auckland
+            artifact: auckland
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: plantillas
+          POSTGRES_DB: plantillas
+          POSTGRES_HOST_AUTH_METHOD: trust
+        options: >-
+          --health-cmd "pg_isready -U plantillas -d plantillas"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.11"
+          cache-dependency-path: apps/api/go.sum
+      - name: Migrar y probar con PostgreSQL
+        env:
+          TEST_TZ: ${{ matrix.tz }}
+        run: |
+          docker build -t plantillas-migrate:e2e -f db/migrate.Dockerfile .
+          docker run --rm --network host -e GOOSE_DRIVER=postgres -e "GOOSE_DBSTRING=$TEST_DATABASE_URL" plantillas-migrate:e2e
+          bash scripts/e2e.sh normal "$TEST_TZ"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.artifact }}
+          path: coverage/
+          if-no-files-found: error
+
   calidad:
     runs-on: ubuntu-latest
+    needs: e2e
     services:
       postgres:
         image: postgres:16-alpine
@@ -41,6 +83,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Contrato generado y compatible con main
         shell: bash
+        env:
+          REF_NAME: ${{ github.ref }}
         run: |
           pnpm codegen
           git diff --exit-code
@@ -56,15 +100,22 @@ jobs:
           mkdir -p coverage
           if git rev-parse --verify --quiet refs/tags/hito-1 >/dev/null; then
             git show refs/tags/hito-1:contracts/openapi.yaml > "${RUNNER_TEMP}/hito-1.yaml"
-            "$(go env GOPATH)/bin/oasdiff" breaking "${RUNNER_TEMP}/hito-1.yaml" contracts/openapi.yaml --fail-on ERR | tee coverage/oasdiff-hito-1.txt
+            "$(go env GOPATH)/bin/oasdiff" breaking "${RUNNER_TEMP}/hito-1.yaml" contracts/openapi.yaml --fail-on ERR 2>&1 | tee coverage/oasdiff-hito-1.txt
+          elif [[ "$REF_NAME" == refs/tags/hito-2 ]]; then
+            echo "::error::Falta publicar el tag hito-1 para comparar el contrato."
+            exit 1
+          fi
+          if [[ "$REF_NAME" == refs/tags/hito-2 ]]; then
+            git merge-base --is-ancestor HEAD FETCH_HEAD
+            git merge-base --is-ancestor refs/tags/hito-1 HEAD
           fi
       - name: Migraciones y repositorio generado
         run: |
           go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
-          go install -tags 'no_mysql no_sqlite3 no_ydb no_mssql no_clickhouse no_vertica no_libsql' github.com/pressly/goose/v3/cmd/goose@v3.30.1
           sqlc generate
           git diff --exit-code
-          goose -dir db/migrations postgres "$TEST_DATABASE_URL" up
+          docker build -t plantillas-migrate:calidad -f db/migrate.Dockerfile .
+          docker run --rm --network host -e GOOSE_DRIVER=postgres -e "GOOSE_DBSTRING=$TEST_DATABASE_URL" plantillas-migrate:calidad
       - working-directory: apps/api
         run: |
           go build ./...
@@ -76,8 +127,10 @@ jobs:
           npm run build
           npm test
       - run: docker compose config --quiet
-      - name: E2E con PostgreSQL y reporte de cobertura
-        run: bash scripts/e2e.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: e2e-utc
+          path: coverage/
       - name: Verificar evidencia de la protección de versión
         run: |
           if bash scripts/e2e.sh sin-proteccion > coverage/e2e-sin-proteccion.log 2>&1; then
@@ -85,12 +138,8 @@ jobs:
             exit 1
           fi
           grep -F 'protección de versión: respuestas [200 200], esperadas [200 409]' coverage/e2e-sin-proteccion.log
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: evidencia-calidad-hito-2
-          path: coverage/
       - name: Configuración de SonarQube
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/hito-2')
         env:
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
@@ -101,12 +150,34 @@ jobs:
             exit 1
           fi
       - name: SonarQube y Quality Gate
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/hito-2')
         uses: SonarSource/sonarqube-scan-action@v8.3.0
         env:
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+      - name: Verificar umbrales del análisis de este run
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/hito-2')
+        shell: bash
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          task_id=$(sed -n 's/^ceTaskId=//p' .scannerwork/report-task.txt)
+          test -n "$task_id"
+          analysis_id=$(curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $SONAR_TOKEN" --get --data-urlencode "id=$task_id" \
+            "${SONAR_HOST_URL%/}/api/ce/task" | jq -er '.task | select(.status == "SUCCESS") | .analysisId')
+          curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $SONAR_TOKEN" --get --data-urlencode "analysisId=$analysis_id" \
+            "${SONAR_HOST_URL%/}/api/qualitygates/project_status" > coverage/quality-gate.json
+          jq -e -f scripts/quality-gate.jq coverage/quality-gate.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidencia-calidad-hito-2
+          path: coverage/
 
   seguridad:
     runs-on: ubuntu-latest
@@ -120,6 +191,7 @@ jobs:
           -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo
           ghcr.io/gitleaks/gitleaks:v8.28.0 git --redact --log-opts="--all" .
       - name: Trivy (repositorio)
+        if: success() || failure()
         run: docker run --rm -v "$PWD:/repo" "$TRIVY_IMAGE" fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /repo
 
   imagen:
@@ -141,3 +213,41 @@ jobs:
         with:
           name: sbom-cyclonedx
           path: sbom.cdx.json
+          if-no-files-found: error
+
+  release:
+    name: Borrador de release hito-2
+    if: github.event_name == 'push' && github.ref == 'refs/tags/hito-2' && github.repository_owner == 'PINGESO-CIVIL'
+    needs: [calidad, seguridad, imagen]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: entrega/
+      - uses: actions/download-artifact@v4
+        with:
+          name: evidencia-calidad-hito-2
+          path: entrega/
+      - name: Validar artefactos y preparar el borrador
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -s entrega/oasdiff-hito-1.txt
+          jq -e -f scripts/quality-gate.jq entrega/quality-gate.json
+          jq -e '.bomFormat == "CycloneDX"' entrega/sbom.cdx.json
+          cp docs/releases/hito-2.md entrega/notas.md
+          printf '\n- Verificaciones y Quality Gate: %s\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> entrega/notas.md
+          assets=(contracts/openapi.yaml entrega/sbom.cdx.json entrega/oasdiff-hito-1.txt)
+          if draft=$(gh release view hito-2 --json isDraft --jq .isDraft 2>/dev/null); then
+            test "$draft" = true
+            gh release upload hito-2 "${assets[@]}" --clobber
+            gh release edit hito-2 --notes-file entrega/notas.md
+          else
+            gh release create hito-2 "${assets[@]}" --verify-tag --draft \
+              --title "Hito 2 · Refinamiento y calidad" --notes-file entrega/notas.md
+          fi

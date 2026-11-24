@@ -15,7 +15,9 @@ Los puertos provisionales son API **5100** y frontend **5101**. Para asignar `51
 - Comprobaciones en `GET /healthz` y `GET /readyz`.
 - Hito 2 usa PostgreSQL. Compose aplica las migraciones en `migrate` antes de iniciar el backend.
 
-El navegador usa la cookie `sesion` emitida por el proveedor de identidad con `HttpOnly`, `Secure`, `SameSite=Lax` y alcance compatible con el proxy web. La API también acepta Bearer para integraciones y Swagger. Configura `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE` y `AUTH_ROLE_CLAIM` con los valores del proveedor. El valor de desarrollo apunta a un JWKS local esperado en el puerto 5102. Sin ese proveedor y sus JWT, sólo están disponibles las rutas públicas. En producción usa `API_ENV=prod`, HTTPS y credenciales de PostgreSQL inyectadas por el entorno.
+El proveedor de identidad emite el JWT. Para abrir una sesión web, envía ese JWT como Bearer a `POST /api/v1/sesiones` por el mismo origen HTTPS. La API emite la cookie `sesion` de host con `Path=/api`, `HttpOnly`, `Secure` y `SameSite=Lax`. Las integraciones y Swagger también pueden usar Bearer directamente. Configura `AUTH_JWKS_URL`, `AUTH_ISSUER`, `AUTH_AUDIENCE` y `AUTH_ROLE_CLAIM` con el proveedor real. El valor de desarrollo apunta a un JWKS local esperado en el puerto 5102. En producción usa `API_ENV=prod`, HTTPS y credenciales de PostgreSQL inyectadas por el entorno.
+
+Para reintentar una creación o edición, envía el mismo `Idempotency-Key` y el mismo cuerpo en ambas peticiones. PostgreSQL conserva la primera respuesta exitosa en la transacción de negocio. Una clave del mismo actor y operación con otra petición produce 409. La cabecera es opcional para mantener compatibilidad con el Hito 1.
 
 La rama local `codex/hito-1` conserva la versión simulada para la primera entrega.
 
@@ -32,6 +34,6 @@ go test ./...
 
 El [contrato](contracts/openapi.yaml) declara permisos por operación. El cliente TypeScript y la tabla de rutas Go se generan desde ese archivo.
 
-Regenera el repositorio SQL con `sqlc generate` (v1.29.0) desde la raíz. Para ejecutar e2e en Linux, aplica `goose -dir db/migrations postgres "$TEST_DATABASE_URL" up` a una base exclusiva de pruebas y ejecuta `bash scripts/e2e.sh`. El informe de cobertura del binario se escribe en `coverage/e2e.cover`.
+Regenera el repositorio SQL con `sqlc generate` (v1.29.0) desde la raíz. Usa el contenedor `migrate` para preparar una base exclusiva de pruebas. Con `TEST_DATABASE_URL` apuntando a esa base, ejecuta `bash scripts/e2e.sh` en Linux. Para una sola entrada de la matriz, usa `bash scripts/e2e.sh normal Pacific/Auckland` o `bash scripts/e2e.sh normal UTC`. El informe del binario se escribe en `coverage/e2e.cover`.
 
 Consulta [arquitectura y propiedad de datos](docs/arquitectura.md), [modos de falla](docs/modos-de-falla.md) y [entrega de hitos](docs/entrega.md). El [pipeline](../../actions/workflows/ci.yml) usa un enlace relativo. El enlace definitivo de SonarQube queda pendiente de la URL del proyecto del curso.

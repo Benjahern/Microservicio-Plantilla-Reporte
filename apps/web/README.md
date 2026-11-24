@@ -24,7 +24,7 @@ El frontend queda en `http://localhost:5101`. Nginx sirve la aplicación y dirig
 
 ## Uso
 
-La aplicación usa la cookie de sesión del proveedor de identidad en el mismo origen. El perfil `lector` puede consultar sus recursos. Las escrituras intentadas por ese perfil muestran el 403 del backend.
+La aplicación usa la cookie de sesión emitida por la API en el mismo origen HTTPS. El integrador envía primero el JWT del proveedor como Bearer a `POST /api/v1/sesiones`. El perfil `lector` puede consultar sus recursos. Las escrituras intentadas por ese perfil muestran el 403 del backend.
 
 ## Estructura
 
