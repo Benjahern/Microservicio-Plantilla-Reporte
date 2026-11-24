@@ -1,6 +1,6 @@
 services:
   postgres:
-    build: &build-postgres
+    build:
       context: .
       dockerfile: db/postgres.Dockerfile
     environment:
