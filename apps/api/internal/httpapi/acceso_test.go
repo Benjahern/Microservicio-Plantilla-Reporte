@@ -69,16 +69,47 @@ func TestMatrizAcceso(t *testing.T) {
 		{"DELETE", target, "", [5]int{401, 403, 204, 404, 204}},
 		{"GET", target + "/versiones", "", [5]int{401, 200, 200, 404, 200}},
 		{"GET", target + "/versiones/1", "", [5]int{401, 200, 200, 404, 200}},
+		{"POST", "/api/v1/sesiones", "", [5]int{401, 204, 204, 204, 204}},
+		{"GET", "/healthz", "", [5]int{200, 200, 200, 200, 200}},
+		{"GET", "/readyz", "", [5]int{200, 200, 200, 200, 200}},
+		{"GET", "/api/docs", "", [5]int{200, 200, 200, 200, 200}},
+		{"GET", "/api/docs/openapi.json", "", [5]int{200, 200, 200, 200, 200}},
 	}
 	for _, c := range cases {
 		for idx, token := range []string{"", "lector", "editor", "otro", "admin"} {
 			t.Run(c.method+c.path+"/"+token, func(t *testing.T) {
-				rec := call(t, router(false), c.method, c.path, token, c.body, c.want[idx])
+				rec := call(t, router(true), c.method, c.path, token, c.body, c.want[idx])
 				if c.want[idx] >= 400 && rec.Header().Get("Content-Type") != "application/problem+json" {
 					t.Fatal(rec.Header())
 				}
 			})
 		}
+	}
+}
+
+func TestIntercambioSesion(t *testing.T) {
+	h := router(false)
+	rec := call(t, h, "POST", "/api/v1/sesiones", "editor", "", 204)
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != "sesion" || cookies[0].Path != "/api" ||
+		!cookies[0].HttpOnly || !cookies[0].Secure || cookies[0].SameSite != http.SameSiteLaxMode {
+		t.Fatal("cookie de sesión incorrecta")
+	}
+	req := httptest.NewRequest("POST", "/api/v1/sesiones", nil)
+	req.AddCookie(cookies[0])
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 401 {
+		t.Fatal("el intercambio requiere Bearer explícito")
+	}
+
+	req = httptest.NewRequest("POST", "https://app.example/api/v1/sesiones", nil)
+	req.Header.Set("Authorization", "Bearer editor")
+	req.Header.Set("Origin", "https://otro.example")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 403 || rec.Header().Get("Set-Cookie") != "" {
+		t.Fatal("se permitió intercambio cruzado")
 	}
 }
 

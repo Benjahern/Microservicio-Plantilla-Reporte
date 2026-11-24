@@ -43,13 +43,20 @@ type response struct {
 
 type server struct{ url string }
 
-func (s server) request(method, path, token, body string, cookie bool) response {
+func (s server) request(method, path, token, body string, cookie bool, headers ...http.Header) response {
 	req, err := http.NewRequest(method, s.url+path, strings.NewReader(body))
 	if err != nil {
 		return response{err: err}
 	}
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for _, h := range headers {
+		for name, values := range h {
+			for _, value := range values {
+				req.Header.Add(name, value)
+			}
+		}
 	}
 	if cookie {
 		req.AddCookie(&http.Cookie{Name: "sesion", Value: token})
@@ -158,6 +165,9 @@ func identity(t *testing.T) (string, func(string, string, string, time.Time) str
 			http.NotFound(w, r)
 			return
 		}
+		if !api.UUIDPattern.MatchString(r.Header.Get(api.RequestIDHeader)) {
+			t.Error("la consulta JWKS no propagó X-Request-Id")
+		}
 		if r.Header.Get("Authorization") != "" {
 			t.Error("la carga de JWKS filtró credenciales")
 		}
@@ -261,6 +271,11 @@ func TestConflictoConcurrente(t *testing.T) {
 	stop()
 	s, _ = start(t, bin, db, issuer)
 	current := decode[api.Response](t, s.request("GET", path, editor, "", false).check(t, 200))
+	var storedCreated, storedUpdated time.Time
+	if err := pool.QueryRow(ctx, "SELECT created_at, updated_at FROM plantillas WHERE id=$1", created.ID).
+		Scan(&storedCreated, &storedUpdated); err != nil {
+		t.Fatal(err)
+	}
 	versions := decode[api.ListResponse[api.VersionResponse]](t, s.request("GET", path+"/versiones", editor, "", false).check(t, 200))
 	before := decode[api.VersionResponse](t, s.request("GET", path+"/versiones/1", editor, "", false).check(t, 200))
 	s.request("GET", path+"/versiones/0", editor, "", false).check(t, 400)
@@ -315,7 +330,8 @@ func TestConflictoConcurrente(t *testing.T) {
 	}{
 		statuses, current.VersionActual, history, before.Contenido["titulo"],
 		current.CreatedAt.Location() == time.UTC && current.UpdatedAt.Location() == time.UTC &&
-			current.CreatedAt.Equal(created.CreatedAt) && current.UpdatedAt.Equal(current.UpdatedAt.In(loc)),
+			current.CreatedAt.Equal(created.CreatedAt) && current.CreatedAt.Equal(storedCreated.In(loc)) &&
+			current.UpdatedAt.Equal(storedUpdated.In(loc)),
 		audit,
 	}
 	data, err := json.MarshalIndent(result, "", "  ")

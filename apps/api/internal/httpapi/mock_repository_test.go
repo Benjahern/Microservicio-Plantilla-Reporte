@@ -45,7 +45,7 @@ func (r *MockRepository) create(id, owner string, in CreateRequest, now time.Tim
 	return out
 }
 
-func (r *MockRepository) Create(_ context.Context, owner string, in CreateRequest) (Response, error) {
+func (r *MockRepository) Create(_ context.Context, owner string, in CreateRequest, _ string) (Response, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.create(api.NewUUID(), owner, in, time.Now().UTC()), nil
@@ -93,7 +93,7 @@ func (r *MockRepository) List(_ context.Context, owner string, all bool, page, l
 	return selected, total, nil
 }
 
-func (r *MockRepository) Update(_ context.Context, owner string, all bool, id string, in UpdateRequest) (Response, error) {
+func (r *MockRepository) Update(_ context.Context, owner string, all bool, id string, in UpdateRequest, _ string) (Response, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	d, err := r.accessible(owner, all, id)

@@ -132,6 +132,9 @@ func (s *keySet) fetch(ctx context.Context) (map[string]*rsa.PublicKey, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
+	if id := api.RequestID(ctx); id != "" {
+		req.Header.Set(api.RequestIDHeader, id)
+	}
 	res, err := s.client.Do(req)
 	if err != nil {
 		return nil, err

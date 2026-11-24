@@ -17,6 +17,14 @@ type AuditoriaPlantillas struct {
 	OcurridoAt  pgtype.Timestamptz
 }
 
+type IdempotenciaPlantillas struct {
+	ActorID       pgtype.UUID
+	Operacion     string
+	ClaveHash     []byte
+	SolicitudHash []byte
+	Respuesta     []byte
+}
+
 type PlantillaVersiones struct {
 	PlantillaID pgtype.UUID
 	Numero      int32

@@ -28,18 +28,15 @@ var _ Repository = (*PostgresRepository)(nil)
 
 var snapshot = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
 
-func (r *PostgresRepository) Create(ctx context.Context, owner string, in CreateRequest) (out Response, err error) {
-	actor, id := uuid(owner), uuid(api.NewUUID())
-	err = pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		queries := r.query.WithTx(tx)
-		p, err := queries.InsertPlantilla(ctx, q.InsertPlantillaParams{ID: id, PropietarioID: actor})
+func (r *PostgresRepository) Create(ctx context.Context, owner string, in CreateRequest, key string) (Response, error) {
+	actor := uuid(owner)
+	return r.write(ctx, actor, "crear", key, in, func(queries *q.Queries) (Response, error) {
+		p, err := queries.InsertPlantilla(ctx, q.InsertPlantillaParams{ID: uuid(api.NewUUID()), PropietarioID: actor})
 		if err != nil {
-			return err
+			return Response{}, err
 		}
-		out, err = writeVersion(ctx, queries, p, actor, in, "crear")
-		return err
+		return writeVersion(ctx, queries, p, actor, in, "crear")
 	})
-	return out, err
 }
 
 func (r *PostgresRepository) Get(ctx context.Context, owner string, all bool, id string) (Response, error) {
@@ -72,27 +69,29 @@ func (r *PostgresRepository) List(ctx context.Context, owner string, all bool, p
 	return out, total, err
 }
 
-func (r *PostgresRepository) Update(ctx context.Context, owner string, all bool, id string, in UpdateRequest) (out Response, err error) {
+func (r *PostgresRepository) Update(ctx context.Context, owner string, all bool, id string, in UpdateRequest, key string) (Response, error) {
 	actor, target := uuid(owner), uuid(id)
-	err = pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		queries := r.query.WithTx(tx)
+	intent := struct {
+		ID    string
+		Admin bool
+		UpdateRequest
+	}{id, all, in}
+	return r.write(ctx, actor, "actualizar", key, intent, func(queries *q.Queries) (Response, error) {
 		p, err := queries.AdvanceVersion(ctx, q.AdvanceVersionParams{
 			ID: target, ActorID: actor, VerTodas: all, VersionEsperada: int32(in.VersionEsperada),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			_, err = queries.GetPlantilla(ctx, q.GetPlantillaParams{ID: target, ActorID: actor, VerTodas: all})
 			if err != nil {
-				return missing(err)
+				return Response{}, missing(err)
 			}
-			return ErrConflict
+			return Response{}, ErrConflict
 		}
 		if err != nil {
-			return err
+			return Response{}, err
 		}
-		out, err = writeVersion(ctx, queries, p, actor, in.CreateRequest, "actualizar")
-		return err
+		return writeVersion(ctx, queries, p, actor, in.CreateRequest, "actualizar")
 	})
-	return out, err
 }
 
 func (r *PostgresRepository) Delete(ctx context.Context, owner string, all bool, id string) error {

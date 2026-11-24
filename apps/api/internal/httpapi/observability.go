@@ -33,11 +33,12 @@ func Observability(next http.Handler, log *slog.Logger, version string) http.Han
 	log = log.With("servicio", "plantillas-reporte", "version", version)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		id := r.Header.Get("X-Request-Id")
+		id := r.Header.Get(api.RequestIDHeader)
 		if !api.UUIDPattern.MatchString(id) {
 			id = api.NewUUID()
 		}
-		w.Header().Set("X-Request-Id", id)
+		r = r.WithContext(api.WithRequestID(r.Context(), id))
+		w.Header().Set(api.RequestIDHeader, id)
 		out := &statusWriter{ResponseWriter: w}
 		defer func() {
 			if recover() != nil && out.status == 0 {

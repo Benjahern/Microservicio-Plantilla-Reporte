@@ -32,6 +32,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sesiones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abrir una sesión web con un JWT válido */
+        post: operations["crearSesion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plantillas": {
         parameters: {
             query?: never;
@@ -208,6 +225,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Reutiliza la clave para reintentar la misma escritura. El servidor reproduce la primera respuesta exitosa para el mismo actor y operación. Usar la clave con otra petición devuelve 409. */
+        IdempotencyKey: string;
         /** @example 11111111-1111-4111-8111-111111111111 */
         ID: components["schemas"]["UUID"];
         Page: components["schemas"]["Pagina"];
@@ -244,6 +263,27 @@ export interface operations {
             503: components["responses"]["Problema"];
         };
     };
+    crearSesion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cookie de sesión emitida */
+            204: {
+                headers: {
+                    /** @description Cookie sesion de host con Path=/api, HttpOnly, Secure y SameSite=Lax */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problema"];
+        };
+    };
     listarPlantillas: {
         parameters: {
             query?: {
@@ -271,7 +311,10 @@ export interface operations {
     crearPlantilla: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Reutiliza la clave para reintentar la misma escritura. El servidor reproduce la primera respuesta exitosa para el mismo actor y operación. Usar la clave con otra petición devuelve 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -282,6 +325,7 @@ export interface operations {
         };
         responses: {
             201: components["responses"]["Plantilla"];
+            409: components["responses"]["Problema"];
             default: components["responses"]["Problema"];
         };
     };
@@ -304,7 +348,10 @@ export interface operations {
     actualizarPlantilla: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Reutiliza la clave para reintentar la misma escritura. El servidor reproduce la primera respuesta exitosa para el mismo actor y operación. Usar la clave con otra petición devuelve 409. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
             path: {
                 /** @example 11111111-1111-4111-8111-111111111111 */
                 id: components["parameters"]["ID"];
@@ -407,6 +454,10 @@ export const operations = {
   "disponibilidad": {
     "method": "GET",
     "path": "/readyz"
+  },
+  "crearSesion": {
+    "method": "POST",
+    "path": "/api/v1/sesiones"
   },
   "listarPlantillas": {
     "method": "GET",

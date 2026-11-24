@@ -21,14 +21,14 @@ func validate(name string, content map[string]any) error {
 	}
 	return nil
 }
-func (s *Service) Create(ctx context.Context, user string, in CreateRequest) (Response, error) {
+func (s *Service) Create(ctx context.Context, user string, in CreateRequest, key string) (Response, error) {
 	if e := validate(in.Nombre, in.Contenido); e != nil {
 		return Response{}, e
 	}
 	if utf8.RuneCountInString(in.Descripcion) > 1000 {
 		return Response{}, fmt.Errorf("%w: descripcion supera 1000 caracteres", ErrValidation)
 	}
-	return s.repo.Create(ctx, user, in)
+	return s.repo.Create(ctx, user, in, key)
 }
 func (s *Service) List(ctx context.Context, user string, all bool, p, l int) ([]Response, int64, error) {
 	return s.repo.List(ctx, user, all, p, l)
@@ -36,7 +36,7 @@ func (s *Service) List(ctx context.Context, user string, all bool, p, l int) ([]
 func (s *Service) Get(ctx context.Context, user string, all bool, id string) (Response, error) {
 	return s.repo.Get(ctx, user, all, id)
 }
-func (s *Service) Update(ctx context.Context, user string, all bool, id string, in UpdateRequest) (Response, error) {
+func (s *Service) Update(ctx context.Context, user string, all bool, id string, in UpdateRequest, key string) (Response, error) {
 	if e := validate(in.Nombre, in.Contenido); e != nil {
 		return Response{}, e
 	}
@@ -49,7 +49,7 @@ func (s *Service) Update(ctx context.Context, user string, all bool, id string, 
 	if utf8.RuneCountInString(in.Descripcion) > 1000 {
 		return Response{}, fmt.Errorf("%w: descripcion supera 1000 caracteres", ErrValidation)
 	}
-	return s.repo.Update(ctx, user, all, id, in)
+	return s.repo.Update(ctx, user, all, id, in, key)
 }
 func (s *Service) Delete(ctx context.Context, user string, all bool, id string) error {
 	return s.repo.Delete(ctx, user, all, id)

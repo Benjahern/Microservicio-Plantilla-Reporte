@@ -14,6 +14,7 @@ import (
 func NewRouter(a auth.Authenticator, h *plantilla.Handler, ping func(context.Context) error, dev bool) http.Handler {
 	mux := http.NewServeMux()
 	handlers := h.Operations()
+	handlers["crearSesion"] = auth.IssueSession
 	handlers["salud"] = func(w http.ResponseWriter, r *http.Request) {
 		api.JSON(w, 200, api.Estado{Status: "ok"})
 	}

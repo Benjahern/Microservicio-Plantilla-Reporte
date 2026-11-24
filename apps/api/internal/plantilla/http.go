@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -31,7 +32,11 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	out, err := h.service.Create(r.Context(), auth.User(r.Context()).ID, in)
+	key, ok := idempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	out, err := h.service.Create(r.Context(), auth.User(r.Context()).ID, in, key)
 	respond(w, 201, out, err)
 }
 
@@ -57,7 +62,11 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	owner, all := auth.Scope(r.Context())
-	out, err := h.service.Update(r.Context(), owner, all, id(r), in)
+	key, ok := idempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	out, err := h.service.Update(r.Context(), owner, all, id(r), in, key)
 	respond(w, 200, out, err)
 }
 
@@ -92,6 +101,20 @@ func (h *Handler) version(w http.ResponseWriter, r *http.Request) {
 }
 
 func id(r *http.Request) string { return strings.ToLower(r.PathValue("id")) }
+
+var validIdempotencyKey = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
+
+func idempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	values := r.Header.Values("Idempotency-Key")
+	if len(values) == 0 {
+		return "", true
+	}
+	if len(values) == 1 && validIdempotencyKey.MatchString(values[0]) {
+		return values[0], true
+	}
+	api.Error(w, 400, "invalid_idempotency_key", "Idempotency-Key debe ser única y tener de 1 a 128 caracteres válidos")
+	return "", false
+}
 
 func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	media, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -186,6 +209,8 @@ func respond(w http.ResponseWriter, status int, v any, err error) {
 		api.Error(w, 404, "not_found", "Plantilla o versión no encontrada")
 	case errors.Is(err, ErrConflict):
 		api.Error(w, 409, "conflict", "La versión cambió; consulta la versión actual")
+	case errors.Is(err, ErrIdempotencyConflict):
+		api.Error(w, 409, "idempotency_conflict", "Usa una clave nueva para una petición distinta")
 	case errors.Is(err, ErrValidation):
 		api.Error(w, 400, "bad_request", err.Error())
 	default:
