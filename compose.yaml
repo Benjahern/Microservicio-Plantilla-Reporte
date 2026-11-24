@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    build: &build-postgres
+      context: .
+      dockerfile: db/postgres.Dockerfile
     environment:
       POSTGRES_USER: plantillas
       POSTGRES_DB: plantillas
@@ -14,7 +16,7 @@ services:
       retries: 20
     networks: [datos]
   migrate:
-    image: postgres:16-alpine
+    build: *build-postgres
     command: ["psql", "postgres://plantillas@postgres:5432/plantillas?sslmode=disable", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1"]
     depends_on:
       postgres:
