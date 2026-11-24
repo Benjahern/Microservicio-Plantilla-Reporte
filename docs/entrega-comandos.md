@@ -9,17 +9,17 @@ Gitleaks detectó dos coincidencias en archivos `.opencode/` del commit inicial 
 ```powershell
 $Source = 'C:\Users\conyv\Desktop\Semestre 2-2026\Microservicio-Plantilla-Reporte'
 $Clean = Join-Path ([System.IO.Path]::GetTempPath()) ('plantillas-entrega-' + [guid]::NewGuid())
-git clone --no-local --branch codex/hitos-1-y-2 $Source $Clean
+git clone --no-local --branch entrega/hito-2 $Source $Clean
 if ($LASTEXITCODE -ne 0) { throw 'Falló el clon' }
 Set-Location $Clean
-git branch codex/hito-1 origin/codex/hito-1
+git branch entrega/hito-1 origin/entrega/hito-1
 if ($LASTEXITCODE -ne 0) { throw 'Falta la rama Hito 1' }
 git filter-repo --path .opencode/ --invert-paths
 if ($LASTEXITCODE -ne 0) { throw 'Falló el saneamiento' }
 gitleaks git --redact=100 --log-opts='--all' .
 if ($LASTEXITCODE -ne 0) { throw 'El historial aún no está listo para publicar' }
-$Hito1 = git rev-parse codex/hito-1
-$Hito2Tip = git rev-parse codex/hitos-1-y-2
+$Hito1 = git rev-parse entrega/hito-1
+$Hito2Tip = git rev-parse entrega/hito-2
 
 gh auth login --hostname github.com
 $Servicio = Read-Host 'Nombre oficial del servicio'
@@ -27,7 +27,7 @@ $Repo = "PINGESO-CIVIL/$Servicio"
 gh repo create "$Repo" --public
 if ($LASTEXITCODE -ne 0) { throw 'Confirma el repositorio con el dueño antes de subir código' }
 git remote add curso "https://github.com/$Repo.git"
-git push curso 'codex/hito-1:refs/heads/main'
+git push curso 'entrega/hito-1:refs/heads/main'
 gh repo edit "$Repo" --default-branch main
 ```
 
@@ -89,7 +89,7 @@ El workflow evalúa SonarQube en los pushes a `main` y al tag `hito-2`. Las veri
 ## 4. Integrar y publicar Hito 2
 
 ```powershell
-git push curso 'codex/hitos-1-y-2:refs/heads/entrega/hito-2'
+git push curso 'entrega/hito-2:refs/heads/entrega/hito-2'
 gh pr create --repo "$Repo" --base main --head entrega/hito-2 --title 'Entrega Hito 2' --body-file docs/releases/hito-2.md
 $PR = Read-Host 'Número del PR de Hito 2'
 gh pr checks "$PR" --repo "$Repo" --watch

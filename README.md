@@ -19,7 +19,7 @@ El proveedor de identidad emite el JWT. Para abrir una sesión web, envía ese J
 
 Para reintentar una creación o edición, envía el mismo `Idempotency-Key` y el mismo cuerpo en ambas peticiones. PostgreSQL conserva la primera respuesta exitosa en la transacción de negocio. Una clave del mismo actor y operación con otra petición produce 409. La cabecera es opcional para mantener compatibilidad con el Hito 1.
 
-La rama local `codex/hito-1` conserva la versión simulada para la primera entrega.
+La rama local `entrega/hito-1` conserva la versión simulada para la primera entrega.
 
 ## Desarrollo y evidencia
 
