@@ -9,10 +9,22 @@ permissions:
   contents: read
 env:
   TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.69.3
+  TEST_DATABASE_URL: postgres://plantillas@127.0.0.1:5432/plantillas?sslmode=disable
 
 jobs:
   calidad:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: plantillas
+          POSTGRES_DB: plantillas
+          POSTGRES_HOST_AUTH_METHOD: trust
+        options: >-
+          --health-cmd "pg_isready -U plantillas -d plantillas"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["5432:5432"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,13 +46,24 @@ jobs:
           git diff --exit-code
           git fetch origin main
           go install github.com/oasdiff/oasdiff@v1.39.0
-          "$(go env GOPATH)/bin/oasdiff" validate contracts/openapi.yaml
           if git cat-file -e FETCH_HEAD:contracts/openapi.yaml 2>/dev/null; then
             git show FETCH_HEAD:contracts/openapi.yaml > "${RUNNER_TEMP}/main-openapi.yaml"
             "$(go env GOPATH)/bin/oasdiff" breaking "${RUNNER_TEMP}/main-openapi.yaml" contracts/openapi.yaml --fail-on ERR
           else
             printf '%s\n' 'Primera publicación del contrato. main todavía no contiene openapi.yaml.'
           fi
+          mkdir -p coverage
+          if git rev-parse --verify --quiet refs/tags/hito-1 >/dev/null; then
+            git show refs/tags/hito-1:contracts/openapi.yaml > "${RUNNER_TEMP}/hito-1.yaml"
+            "$(go env GOPATH)/bin/oasdiff" breaking "${RUNNER_TEMP}/hito-1.yaml" contracts/openapi.yaml --fail-on ERR | tee coverage/oasdiff-hito-1.txt
+          fi
+      - name: Migraciones y repositorio generado
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
+          go install -tags 'no_mysql no_sqlite3 no_ydb no_mssql no_clickhouse no_vertica no_libsql' github.com/pressly/goose/v3/cmd/goose@v3.30.1
+          sqlc generate
+          git diff --exit-code
+          goose -dir db/migrations postgres "$TEST_DATABASE_URL" up
       - working-directory: apps/api
         run: |
           go build ./...
@@ -52,6 +75,37 @@ jobs:
           npm run build
           npm test
       - run: docker compose config --quiet
+      - name: E2E con PostgreSQL y reporte de cobertura
+        run: bash scripts/e2e.sh
+      - name: Verificar evidencia de la protección de versión
+        run: |
+          if bash scripts/e2e.sh sin-proteccion > coverage/e2e-sin-proteccion.log 2>&1; then
+            printf '%s\n' 'La prueba mutada tenía que fallar.'
+            exit 1
+          fi
+          grep -F 'protección de versión: respuestas [200 200], esperadas [200 409]' coverage/e2e-sin-proteccion.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidencia-calidad-hito-2
+          path: coverage/
+      - name: Configuración de SonarQube
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [[ -z "$SONAR_HOST_URL" || -z "$SONAR_PROJECT_KEY" || -z "$SONAR_TOKEN" ]]; then
+            echo "::error::Configura SONAR_HOST_URL, SONAR_PROJECT_KEY y el secreto SONAR_TOKEN."
+            exit 1
+          fi
+      - name: SonarQube y Quality Gate
+        uses: SonarSource/sonarqube-scan-action@v8.3.0
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
 
   seguridad:
     runs-on: ubuntu-latest
@@ -73,9 +127,15 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -t plantillas-api:ci apps/api
       - run: docker build -t plantillas-web:ci apps/web
-      - run: docker build -t plantillas-postgres:ci -f db/postgres.Dockerfile .
+      - run: docker build -t plantillas-migrate:ci -f db/migrate.Dockerfile .
       - name: Trivy (imágenes)
         run: |
-          for image in plantillas-api:ci plantillas-web:ci plantillas-postgres:ci; do
+          for image in plantillas-api:ci plantillas-web:ci plantillas-migrate:ci postgres:16-alpine; do
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$image"
           done
+      - name: SBOM CycloneDX del backend
+        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image --format cyclonedx plantillas-api:ci > sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json

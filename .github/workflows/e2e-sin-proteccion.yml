@@ -1,0 +1,32 @@
+name: E2E sin protección de versión
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgres://plantillas@127.0.0.1:5432/plantillas?sslmode=disable
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: plantillas
+          POSTGRES_DB: plantillas
+          POSTGRES_HOST_AUTH_METHOD: trust
+        options: >-
+          --health-cmd "pg_isready -U plantillas -d plantillas"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.11"
+          cache-dependency-path: apps/api/go.sum
+      - run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
+          go install -tags 'no_mysql no_sqlite3 no_ydb no_mssql no_clickhouse no_vertica no_libsql' github.com/pressly/goose/v3/cmd/goose@v3.30.1
+          goose -dir db/migrations postgres "$TEST_DATABASE_URL" up
+      - name: Ejecutar el E2E con la protección retirada (resultado esperado en rojo)
+        run: bash scripts/e2e.sh sin-proteccion
