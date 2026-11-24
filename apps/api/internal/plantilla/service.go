@@ -4,17 +4,20 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/example/microservicio-plantilla-reporte/internal/api"
 )
 
 type Service struct{ repo Repository }
 
 func NewService(r Repository) *Service { return &Service{r} }
 func validate(name string, content map[string]any) error {
-	if name != strings.TrimSpace(name) || name == "" || len(name) > 150 {
-		return fmt.Errorf("nombre es obligatorio y debe tener hasta 150 caracteres")
+	if name != strings.TrimSpace(name) || name == "" || utf8.RuneCountInString(name) > 150 {
+		return fmt.Errorf("%w: nombre debe tener de 1 a 150 caracteres sin espacios en los extremos", ErrValidation)
 	}
 	if len(content) == 0 {
-		return fmt.Errorf("contenido debe ser un objeto JSON no vacío")
+		return fmt.Errorf("%w: contenido debe ser un objeto JSON no vacío", ErrValidation)
 	}
 	return nil
 }
@@ -22,8 +25,8 @@ func (s *Service) Create(ctx context.Context, user string, in CreateRequest) (Re
 	if e := validate(in.Nombre, in.Contenido); e != nil {
 		return Response{}, e
 	}
-	if len(in.Descripcion) > 1000 {
-		return Response{}, fmt.Errorf("descripcion supera 1000 caracteres")
+	if utf8.RuneCountInString(in.Descripcion) > 1000 {
+		return Response{}, fmt.Errorf("%w: descripcion supera 1000 caracteres", ErrValidation)
 	}
 	return s.repo.Create(ctx, user, in)
 }
@@ -38,13 +41,13 @@ func (s *Service) Update(ctx context.Context, user string, all bool, id string, 
 		return Response{}, e
 	}
 	if in.Activo == nil {
-		return Response{}, fmt.Errorf("activo es obligatorio")
+		return Response{}, fmt.Errorf("%w: activo es obligatorio", ErrValidation)
 	}
-	if in.VersionEsperada < 1 {
-		return Response{}, fmt.Errorf("version_esperada debe ser positiva")
+	if in.VersionEsperada < 1 || in.VersionEsperada > api.MaxInt {
+		return Response{}, fmt.Errorf("%w: version_esperada fuera de rango", ErrValidation)
 	}
-	if len(in.Descripcion) > 1000 {
-		return Response{}, fmt.Errorf("descripcion supera 1000 caracteres")
+	if utf8.RuneCountInString(in.Descripcion) > 1000 {
+		return Response{}, fmt.Errorf("%w: descripcion supera 1000 caracteres", ErrValidation)
 	}
 	return s.repo.Update(ctx, user, all, id, in)
 }

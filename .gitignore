@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.cover
+coverage.out
+.opencode/

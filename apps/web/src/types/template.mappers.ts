@@ -29,7 +29,10 @@ export const toCreateWire = (t: CreateTemplate): CreateTemplateWire => ({
 })
 
 export const toUpdateWire = (t: UpdateTemplate): UpdateTemplateWire => ({
-  ...toCreateWire(t),
+  nombre: t.name,
+  descripcion: t.description,
+  contenido: t.content,
+  activo: t.active,
   version_esperada: t.expectedVersion,
 })
 

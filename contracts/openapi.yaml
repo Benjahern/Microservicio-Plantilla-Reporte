@@ -1,0 +1,67 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Plantillas de reporte", "version": "1.0.0" },
+  "tags": [{ "name": "Plantillas" }, { "name": "Versiones" }, { "name": "Operación" }],
+  "security": [{ "Bearer": [] }, { "Sesion": [] }],
+  "paths": {
+    "/healthz": {
+      "get": { "operationId": "salud", "tags": ["Operación"], "security": [], "x-permiso": "publico", "responses": { "200": { "$ref": "#/components/responses/Salud" } } }
+    },
+    "/readyz": {
+      "get": { "operationId": "disponibilidad", "tags": ["Operación"], "security": [], "x-permiso": "publico", "responses": { "200": { "$ref": "#/components/responses/Salud" }, "503": { "$ref": "#/components/responses/Problema" } } }
+    },
+    "/api/v1/plantillas": {
+      "get": { "operationId": "listarPlantillas", "tags": ["Plantillas"], "x-permiso": "plantillas:leer", "x-roles": ["lector", "editor", "administrador"], "parameters": [{ "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" }], "responses": { "200": { "description": "Listado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ListaPlantillas" } } } }, "default": { "$ref": "#/components/responses/Problema" } } },
+      "post": { "operationId": "crearPlantilla", "tags": ["Plantillas"], "x-permiso": "plantillas:operar", "x-roles": ["editor", "administrador"], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Crear" } } } }, "responses": { "201": { "$ref": "#/components/responses/Plantilla" }, "default": { "$ref": "#/components/responses/Problema" } } }
+    },
+    "/api/v1/plantillas/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/ID" }],
+      "get": { "operationId": "obtenerPlantilla", "tags": ["Plantillas"], "x-permiso": "plantillas:leer", "x-roles": ["lector", "editor", "administrador"], "responses": { "200": { "$ref": "#/components/responses/Plantilla" }, "default": { "$ref": "#/components/responses/Problema" } } },
+      "put": { "operationId": "actualizarPlantilla", "tags": ["Plantillas"], "x-permiso": "plantillas:operar", "x-roles": ["editor", "administrador"], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Actualizar" } } } }, "responses": { "200": { "$ref": "#/components/responses/Plantilla" }, "409": { "$ref": "#/components/responses/Problema" }, "default": { "$ref": "#/components/responses/Problema" } } },
+      "delete": { "operationId": "eliminarPlantilla", "tags": ["Plantillas"], "x-permiso": "plantillas:operar", "x-roles": ["editor", "administrador"], "responses": { "204": { "description": "Eliminada" }, "default": { "$ref": "#/components/responses/Problema" } } }
+    },
+    "/api/v1/plantillas/{id}/versiones": {
+      "parameters": [{ "$ref": "#/components/parameters/ID" }],
+      "get": { "operationId": "listarVersiones", "tags": ["Versiones"], "x-permiso": "plantillas:leer", "x-roles": ["lector", "editor", "administrador"], "parameters": [{ "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" }], "responses": { "200": { "description": "Historial", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ListaVersiones" } } } }, "default": { "$ref": "#/components/responses/Problema" } } }
+    },
+    "/api/v1/plantillas/{id}/versiones/{numero}": {
+      "parameters": [{ "$ref": "#/components/parameters/ID" }, { "name": "numero", "in": "path", "required": true, "schema": { "$ref": "#/components/schemas/NumeroVersion" }, "example": 1 }],
+      "get": { "operationId": "obtenerVersion", "tags": ["Versiones"], "x-permiso": "plantillas:leer", "x-roles": ["lector", "editor", "administrador"], "responses": { "200": { "description": "Instantánea", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Version" } } } }, "default": { "$ref": "#/components/responses/Problema" } } }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": { "type": "http", "scheme": "bearer" },
+      "Sesion": { "type": "apiKey", "in": "cookie", "name": "sesion" }
+    },
+    "parameters": {
+      "ID": { "name": "id", "in": "path", "required": true, "schema": { "$ref": "#/components/schemas/UUID" }, "example": "11111111-1111-4111-8111-111111111111" },
+      "Page": { "name": "page", "in": "query", "schema": { "$ref": "#/components/schemas/Pagina" } },
+      "Limit": { "name": "limit", "in": "query", "schema": { "$ref": "#/components/schemas/Limite" } }
+    },
+    "responses": {
+      "Salud": { "description": "Servicio operativo", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Estado" } } } },
+      "Plantilla": { "description": "Plantilla y versión actual", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Plantilla" } } } },
+      "Problema": { "description": "Error de la operación", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problema" } } } }
+    },
+    "schemas": {
+      "UUID": { "type": "string", "format": "uuid", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", "examples": ["11111111-1111-4111-8111-111111111111"] },
+      "Nombre": { "type": "string", "minLength": 1, "maxLength": 150, "pattern": "^\\S(?:[\\s\\S]*\\S)?$", "examples": ["Reporte mensual"] },
+      "Descripcion": { "type": "string", "maxLength": 1000, "examples": ["Resumen de operaciones"] },
+      "Contenido": { "type": "object", "minProperties": 1, "additionalProperties": true, "examples": [{ "titulo": "Ventas" }] },
+      "NumeroVersion": { "type": "integer", "minimum": 1, "maximum": 2147483647, "examples": [1] },
+      "Pagina": { "type": "integer", "minimum": 1, "maximum": 2147483647, "default": 1 },
+      "Limite": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+      "Fecha": { "type": "string", "format": "date-time", "examples": ["2026-11-23T12:00:00Z"] },
+      "Crear": { "type": "object", "additionalProperties": false, "required": ["nombre", "contenido"], "properties": { "nombre": { "$ref": "#/components/schemas/Nombre" }, "descripcion": { "$ref": "#/components/schemas/Descripcion" }, "contenido": { "$ref": "#/components/schemas/Contenido" }, "activo": { "type": "boolean", "default": true } }, "examples": [{ "nombre": "Reporte mensual", "contenido": { "titulo": "Ventas" } }] },
+      "Actualizar": { "type": "object", "additionalProperties": false, "required": ["nombre", "contenido", "activo", "version_esperada"], "properties": { "nombre": { "$ref": "#/components/schemas/Nombre" }, "descripcion": { "$ref": "#/components/schemas/Descripcion" }, "contenido": { "$ref": "#/components/schemas/Contenido" }, "activo": { "type": "boolean" }, "version_esperada": { "$ref": "#/components/schemas/NumeroVersion" } }, "examples": [{ "nombre": "Reporte mensual", "contenido": { "titulo": "Ventas" }, "activo": true, "version_esperada": 1 }] },
+      "Version": { "type": "object", "required": ["numero", "nombre", "descripcion", "contenido", "activo", "autor_id", "created_at"], "properties": { "numero": { "$ref": "#/components/schemas/NumeroVersion" }, "nombre": { "$ref": "#/components/schemas/Nombre" }, "descripcion": { "$ref": "#/components/schemas/Descripcion" }, "contenido": { "$ref": "#/components/schemas/Contenido" }, "activo": { "type": "boolean" }, "autor_id": { "$ref": "#/components/schemas/UUID" }, "created_at": { "$ref": "#/components/schemas/Fecha" } } },
+      "Plantilla": { "allOf": [{ "$ref": "#/components/schemas/Version" }, { "type": "object", "required": ["id", "propietario_id", "version_actual", "updated_at"], "properties": { "id": { "$ref": "#/components/schemas/UUID" }, "propietario_id": { "$ref": "#/components/schemas/UUID" }, "version_actual": { "$ref": "#/components/schemas/NumeroVersion" }, "updated_at": { "$ref": "#/components/schemas/Fecha" } } }] },
+      "Paginacion": { "type": "object", "required": ["page", "limit", "total"], "properties": { "page": { "$ref": "#/components/schemas/Pagina" }, "limit": { "$ref": "#/components/schemas/Limite" }, "total": { "type": "integer", "minimum": 0 } } },
+      "ListaPlantillas": { "type": "object", "required": ["data", "pagination"], "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/Plantilla" } }, "pagination": { "$ref": "#/components/schemas/Paginacion" } } },
+      "ListaVersiones": { "type": "object", "required": ["data", "pagination"], "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/Version" } }, "pagination": { "$ref": "#/components/schemas/Paginacion" } } },
+      "Estado": { "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["ok", "ready"] } } },
+      "Problema": { "type": "object", "required": ["type", "title", "status", "code", "detail"], "properties": { "type": { "type": "string", "format": "uri-reference" }, "title": { "type": "string" }, "status": { "type": "integer", "minimum": 400, "maximum": 599 }, "code": { "type": "string" }, "detail": { "type": "string" } } }
+    }
+  }
+}

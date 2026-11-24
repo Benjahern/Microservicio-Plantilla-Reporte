@@ -1,10 +1,15 @@
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 	"github.com/example/microservicio-plantilla-reporte/internal/config"
 	"github.com/example/microservicio-plantilla-reporte/internal/usuarios"
 )
+
+func (r *Registry) Authenticate(_ context.Context, token string) (usuarios.UsuarioDTO, bool) {
+	return r.Resolve(token)
+}
 
 type Registry struct{ identities []entry }
 type entry struct {

@@ -1,0 +1,7 @@
+{
+  "name": "plantillas-reporte",
+  "private": true,
+  "packageManager": "pnpm@10.13.1",
+  "scripts": { "codegen": "node scripts/codegen.mjs" },
+  "devDependencies": { "openapi-typescript": "7.8.0" }
+}

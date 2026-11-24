@@ -14,7 +14,7 @@ describe("request", () => {
   })
 
   it("translates the API error into ApiError", async () => {
-    const body = { error: { code: "forbidden", message: "Insufficient permission" } }
+    const body = { code: "forbidden", title: "Insufficient permission" }
     vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify(body), { status: 403 }))))
     await expect(request(ctx, "/x")).rejects.toMatchObject({ status: 403, code: "forbidden" })
     await expect(request(ctx, "/x")).rejects.toBeInstanceOf(ApiError)

@@ -1,6 +1,20 @@
 package plantilla
 
-import "context"
+import (
+	"context"
+	"errors"
+
+	"github.com/example/microservicio-plantilla-reporte/internal/api"
+)
+
+type CreateRequest = api.CreateRequest
+type UpdateRequest = api.UpdateRequest
+type Response = api.Response
+type VersionResponse = api.VersionResponse
+
+var ErrNotFound = errors.New("plantilla no encontrada")
+var ErrConflict = errors.New("versión esperada no coincide")
+var ErrValidation = errors.New("entrada inválida")
 
 type Repository interface {
 	Create(context.Context, string, CreateRequest) (Response, error)

@@ -12,7 +12,9 @@ export class ApiError extends Error {
 }
 
 interface ErrorBody {
-  error?: { code?: string; message?: string }
+  code?: string
+  detail?: string
+  title?: string
 }
 
 export async function request<T>(
@@ -33,8 +35,8 @@ export async function request<T>(
     const body = (await response.json().catch(() => ({}))) as ErrorBody
     throw new ApiError(
       response.status,
-      body.error?.code ?? "unknown",
-      body.error?.message ?? `Error ${response.status}`,
+      body.code ?? "unknown",
+      body.detail ?? body.title ?? `Error ${response.status}`,
     )
   }
   if (response.status === 204) return undefined as T

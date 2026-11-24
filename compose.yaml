@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: plantillas
+      POSTGRES_DB: plantillas
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "plantillas", "-d", "plantillas"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [datos]
+  migrate:
+    image: postgres:16-alpine
+    command: ["psql", "postgres://plantillas@postgres:5432/plantillas?sslmode=disable", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [datos]
+  backend:
+    build: ./apps/api
+    environment:
+      API_ENV: ${API_ENV:-dev}
+      MOCK_IDENTITIES_JSON: ${MOCK_IDENTITIES_JSON:-}
+    ports:
+      - "127.0.0.1:${API_PORT:-5100}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [datos, web]
+  frontend:
+    build: ./apps/web
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5101}:80"
+    depends_on: [backend]
+    networks: [web]
+networks:
+  datos:
+    internal: true
+  web:
+volumes:
+  postgres-data:
