@@ -1,0 +1,76 @@
+name: CI
+on:
+  push:
+    branches: ["**"]
+    tags: ["hito-*"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+env:
+  TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.69.3
+
+jobs:
+  calidad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+          cache-dependency-path: apps/api/go.sum
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.0"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Contrato generado y compatible con main
+        shell: bash
+        run: |
+          pnpm codegen
+          git diff --exit-code
+          git fetch origin main
+          if git cat-file -e FETCH_HEAD:contracts/openapi.yaml 2>/dev/null; then
+            git show FETCH_HEAD:contracts/openapi.yaml > "${RUNNER_TEMP}/main-openapi.yaml"
+            go install github.com/oasdiff/oasdiff@v1.39.0
+            "$(go env GOPATH)/bin/oasdiff" breaking "${RUNNER_TEMP}/main-openapi.yaml" contracts/openapi.yaml --fail-on ERR
+          else
+            printf '%s\n' 'Primera publicación del contrato. main todavía no contiene openapi.yaml.'
+          fi
+      - working-directory: apps/api
+        run: |
+          go build ./...
+          go test -race ./...
+          go vet ./...
+      - working-directory: apps/web
+        run: |
+          npm ci
+          npm run build
+          npm test
+      - run: docker compose config --quiet
+
+  seguridad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks (historial)
+        run: docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.28.0 git --redact .
+      - name: Trivy (repositorio)
+        run: docker run --rm -v "$PWD:/repo" "$TRIVY_IMAGE" fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /repo
+
+  imagen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t plantillas-api:ci apps/api
+      - run: docker build -t plantillas-web:ci apps/web
+      - name: Trivy (imágenes)
+        run: |
+          for image in plantillas-api:ci plantillas-web:ci; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$image"
+          done
