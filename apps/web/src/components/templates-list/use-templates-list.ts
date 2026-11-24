@@ -15,11 +15,6 @@ export function useTemplatesList(context: () => ApiContext, limit = 10) {
 
   async function load(page = pagination.value.page) {
     const ctx = context()
-    if (!ctx.token) {
-      items.value = []
-      error.value = "Ingresa un token para consultar las plantillas."
-      return
-    }
     loading.value = true
     error.value = null
     try {
@@ -27,6 +22,7 @@ export function useTemplatesList(context: () => ApiContext, limit = 10) {
       items.value = result.data
       pagination.value = result.pagination
     } catch (e) {
+      items.value = []
       error.value = errorMessage(e)
     } finally {
       loading.value = false

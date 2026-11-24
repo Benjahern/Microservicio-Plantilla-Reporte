@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -14,19 +15,39 @@ import (
 	"github.com/example/microservicio-plantilla-reporte/internal/config"
 	"github.com/example/microservicio-plantilla-reporte/internal/httpapi"
 	"github.com/example/microservicio-plantilla-reporte/internal/plantilla"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("configuración inválida", "error", err)
+		logger.Error("configuración inválida", "motivo", err.Error())
 		os.Exit(1)
 	}
-	repo := plantilla.NewMockRepository()
-	router := httpapi.NewRouter(auth.NewRegistry(cfg.Identities), plantilla.NewHandler(plantilla.NewService(repo)),
-		func(context.Context) error { return nil }, cfg.Environment == "dev")
-	if err := serve(cfg.HTTPAddr, router); err != nil {
-		slog.Error("servidor detenido", "error", err)
+	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("DATABASE_URL inválida")
+		os.Exit(1)
+	}
+	poolConfig.ConnConfig.ConnectTimeout = cfg.DatabaseTimeout
+	poolConfig.ConnConfig.RuntimeParams["statement_timeout"] = strconv.FormatInt(max(1, cfg.DatabaseTimeout.Milliseconds()), 10)
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+	if err != nil {
+		logger.Error("No se pudo configurar PostgreSQL")
+		os.Exit(1)
+	}
+	defer pool.Close()
+	ready := func(parent context.Context) error {
+		ctx, cancel := context.WithTimeout(parent, cfg.DatabaseTimeout)
+		defer cancel()
+		return pool.Ping(ctx)
+	}
+	repo := plantilla.NewPostgresRepository(pool)
+	verifier := auth.NewJWT(cfg.JWKSURL, cfg.Issuer, cfg.Audience, cfg.RoleClaim)
+	router := httpapi.NewRouter(verifier, plantilla.NewHandler(plantilla.NewService(repo)), ready, cfg.Environment == "dev")
+	if err := serve(cfg.HTTPAddr, httpapi.Observability(router, logger, cfg.Version)); err != nil {
+		logger.Error("servidor detenido")
 		os.Exit(1)
 	}
 }

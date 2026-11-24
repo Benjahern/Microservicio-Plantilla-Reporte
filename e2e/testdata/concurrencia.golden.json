@@ -1,0 +1,18 @@
+{
+  "respuestas_concurrentes": [
+    200,
+    409
+  ],
+  "version_tras_reinicio": 2,
+  "historial": [
+    2,
+    1
+  ],
+  "contenido_v1": "Inicial",
+  "fechas_utc_y_mismo_instante": true,
+  "auditoria": [
+    "crear:11111111-1111-4111-8111-111111111111:1",
+    "actualizar:11111111-1111-4111-8111-111111111111:2",
+    "eliminar:22222222-2222-4222-8222-222222222222:2"
+  ]
+}

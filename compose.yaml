@@ -16,8 +16,12 @@ services:
       retries: 20
     networks: [datos]
   migrate:
-    build: *build-postgres
-    command: ["psql", "postgres://plantillas@postgres:5432/plantillas?sslmode=disable", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1"]
+    build:
+      context: .
+      dockerfile: db/migrate.Dockerfile
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: ${DATABASE_URL:-postgres://plantillas@postgres:5432/plantillas?sslmode=disable}
     depends_on:
       postgres:
         condition: service_healthy
@@ -26,7 +30,14 @@ services:
     build: ./apps/api
     environment:
       API_ENV: ${API_ENV:-dev}
-      MOCK_IDENTITIES_JSON: ${MOCK_IDENTITIES_JSON:-}
+      APP_VERSION: ${APP_VERSION:-dev}
+      DATABASE_URL: ${DATABASE_URL:-postgres://plantillas@postgres:5432/plantillas?sslmode=disable}
+      DATABASE_TIMEOUT: ${DATABASE_TIMEOUT:-5s}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://host.docker.internal:5102/.well-known/jwks.json}
+      AUTH_ISSUER: ${AUTH_ISSUER:-http://localhost:5102}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-plantillas-reporte}
+      AUTH_ROLE_CLAIM: ${AUTH_ROLE_CLAIM:-perfil}
+    extra_hosts: ["host.docker.internal:host-gateway"]
     ports:
       - "127.0.0.1:${API_PORT:-5100}:8000"
     depends_on:

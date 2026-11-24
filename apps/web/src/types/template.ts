@@ -48,5 +48,5 @@ export interface UpdateTemplate extends CreateTemplate {
 // Context received by every micro-component: it depends on neither routes nor global state.
 export interface ApiContext {
   baseUrl: string
-  token: string
+  token?: string
 }

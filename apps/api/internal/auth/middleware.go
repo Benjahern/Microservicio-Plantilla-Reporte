@@ -2,11 +2,14 @@ package auth
 
 import (
 	"context"
-	"github.com/example/microservicio-plantilla-reporte/internal/api"
-	"github.com/example/microservicio-plantilla-reporte/internal/usuarios"
+	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
+
+	"github.com/example/microservicio-plantilla-reporte/internal/api"
+	"github.com/example/microservicio-plantilla-reporte/internal/usuarios"
 )
 
 type contextKey struct{}
@@ -22,7 +25,7 @@ func Scope(ctx context.Context) (string, bool) {
 }
 
 type Authenticator interface {
-	Authenticate(context.Context, string) (usuarios.UsuarioDTO, bool)
+	Authenticate(context.Context, string) (usuarios.UsuarioDTO, error)
 }
 
 func Middleware(authenticator Authenticator, roles []string, next http.Handler) http.Handler {
@@ -31,6 +34,10 @@ func Middleware(authenticator Authenticator, roles []string, next http.Handler) 
 		if r.Header.Get("Authorization") == "" {
 			cookie, err := r.Cookie("sesion")
 			if err == nil {
+				if !sameOrigin(r) {
+					api.Error(w, 403, "forbidden", "Origen inválido para la sesión")
+					return
+				}
 				scheme, token, ok = "Bearer", cookie.Value, true
 			}
 		}
@@ -38,8 +45,12 @@ func Middleware(authenticator Authenticator, roles []string, next http.Handler) 
 			api.Error(w, 401, "unauthorized", "Token inválido o ausente")
 			return
 		}
-		user, valid := authenticator.Authenticate(r.Context(), token)
-		if !valid {
+		user, err := authenticator.Authenticate(r.Context(), token)
+		if errors.Is(err, ErrIdentityUnavailable) {
+			api.Error(w, 503, "identity_unavailable", "Proveedor de identidad no disponible")
+			return
+		}
+		if err != nil {
 			api.Error(w, 401, "unauthorized", "Token inválido o ausente")
 			return
 		}
@@ -49,4 +60,18 @@ func Middleware(authenticator Authenticator, roles []string, next http.Handler) 
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), contextKey{}, user)))
 	})
+}
+
+func sameOrigin(r *http.Request) bool {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		return true
+	}
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		return false
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		parsed, err := url.Parse(origin)
+		return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && strings.EqualFold(parsed.Host, r.Host)
+	}
+	return true
 }

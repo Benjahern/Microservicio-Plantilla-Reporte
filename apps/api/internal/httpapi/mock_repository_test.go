@@ -1,4 +1,4 @@
-package plantilla
+package httpapi
 
 import (
 	"context"
@@ -7,7 +7,16 @@ import (
 	"time"
 
 	"github.com/example/microservicio-plantilla-reporte/internal/api"
+	"github.com/example/microservicio-plantilla-reporte/internal/plantilla"
 )
+
+type CreateRequest = api.CreateRequest
+type UpdateRequest = api.UpdateRequest
+type Response = api.Response
+type VersionResponse = api.VersionResponse
+
+var ErrNotFound = plantilla.ErrNotFound
+var ErrConflict = plantilla.ErrConflict
 
 type mockTemplate struct {
 	current  Response

@@ -24,8 +24,10 @@ export async function request<T>(
 ): Promise<T> {
   const response = await fetch(`${ctx.baseUrl}${path}`, {
     method: init.method ?? "GET",
+    credentials: "same-origin",
+    signal: AbortSignal.timeout(5000),
     headers: {
-      Authorization: `Bearer ${ctx.token}`,
+      ...(ctx.token ? { Authorization: `Bearer ${ctx.token}` } : {}),
       ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -46,9 +48,10 @@ export async function request<T>(
 // Turns any error into a user-facing message (shown in Spanish).
 export function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.status === 401) return "Token inválido o ausente."
+    if (e.status === 401) return "Inicia sesión para consultar las plantillas."
     if (e.status === 403) return "Tu perfil no tiene permiso para esta acción."
     return e.message
   }
+  if (e instanceof Error && e.name === "TimeoutError") return "La API no respondió a tiempo."
   return e instanceof Error ? e.message : "Error inesperado"
 }

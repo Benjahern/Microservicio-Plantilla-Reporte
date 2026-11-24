@@ -10,7 +10,7 @@ npm ci
 npm run dev        # http://localhost:5173
 ```
 
-Vite dirige `/api` a `http://localhost:5100`. Configura `BACKEND_URL` para un puerto distinto.
+Vite dirige `/api` a `http://localhost:5100`. Para otra dirección, configura `BACKEND_URL` en el entorno de Vite.
 
 ## Con Docker
 
@@ -24,13 +24,13 @@ El frontend queda en `http://localhost:5101`. Nginx sirve la aplicación y dirig
 
 ## Uso
 
-Usa `demo-lector`, `demo-editor` o `demo-admin` para trabajar con el repositorio simulado de Hito 1.
+La aplicación usa la cookie de sesión del proveedor de identidad en el mismo origen. El perfil `lector` puede consultar sus recursos. Las escrituras intentadas por ese perfil muestran el 403 del backend.
 
 ## Estructura
 
 ```
 src/
-  shared/http-client.api.ts  Fetch, identidad simulada y errores
+  shared/http-client.api.ts  Fetch, sesión y errores
   types/contract.gen.ts     Tipos y rutas generados desde OpenAPI
   components/              Listado, editor e historial
   dev-app/                  Aplicación de desarrollo

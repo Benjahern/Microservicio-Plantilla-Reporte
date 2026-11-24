@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/example/microservicio-plantilla-reporte/internal/api"
+	"github.com/example/microservicio-plantilla-reporte/internal/auth"
 	"github.com/example/microservicio-plantilla-reporte/internal/plantilla"
 	"github.com/example/microservicio-plantilla-reporte/internal/usuarios"
 )
@@ -19,9 +20,12 @@ const base = "/api/v1/plantillas"
 
 type identities map[string]usuarios.UsuarioDTO
 
-func (i identities) Authenticate(_ context.Context, token string) (usuarios.UsuarioDTO, bool) {
+func (i identities) Authenticate(_ context.Context, token string) (usuarios.UsuarioDTO, error) {
 	user, ok := i[token]
-	return user, ok
+	if !ok {
+		return usuarios.UsuarioDTO{}, auth.ErrInvalidToken
+	}
+	return user, nil
 }
 
 func router(dev bool) http.Handler {
@@ -30,7 +34,7 @@ func router(dev bool) http.Handler {
 		"editor": {ID: owner, Perfil: "editor"},
 		"otro":   {ID: other, Perfil: "editor"},
 		"admin":  {ID: other, Perfil: "administrador"},
-	}, plantilla.NewHandler(plantilla.NewService(plantilla.NewMockRepository())), func(context.Context) error { return nil }, dev)
+	}, plantilla.NewHandler(plantilla.NewService(NewMockRepository())), func(context.Context) error { return nil }, dev)
 }
 
 func call(t *testing.T, h http.Handler, method, path, token, body string, want int) *httptest.ResponseRecorder {

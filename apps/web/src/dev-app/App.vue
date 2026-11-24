@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { ref } from "vue"
 import TemplatesList from "@/components/templates-list/templates-list.vue"
 import TemplateEditor from "@/components/template-editor/template-editor.vue"
 import TemplateVersions from "@/components/template-versions/template-versions.vue"
@@ -7,10 +7,7 @@ import type { ApiContext } from "@/types/template"
 
 type View = "list" | "editor" | "versions"
 
-// The token lives in memory only: the DAS forbids localStorage and sessionStorage.
-const token = ref("")
-const tokenInput = ref("")
-const context = computed<ApiContext>(() => ({ baseUrl: "", token: token.value }))
+const context: ApiContext = { baseUrl: "" }
 
 const view = ref<View>("list")
 const templateId = ref<string | undefined>()
@@ -38,11 +35,7 @@ function backToList() {
   <main class="app">
     <header class="toolbar">
       <h1>Plantillas de reporte <small>(app de desarrollo)</small></h1>
-      <form class="token" @submit.prevent="token = tokenInput.trim()">
-        <input v-model="tokenInput" type="password" placeholder="Bearer token" autocomplete="off" />
-        <button type="submit">Usar token</button>
-        <button v-if="view === 'list'" type="button" :disabled="!token" @click="openNew">Nueva plantilla</button>
-      </form>
+      <button v-if="view === 'list'" type="button" @click="openNew">Nueva plantilla</button>
     </header>
 
     <TemplatesList v-show="view === 'list'" ref="list" :context="context" @edit="openEditor" @versions="openVersions" />
@@ -72,6 +65,4 @@ button { font: inherit; padding: 0.35rem 0.75rem; cursor: pointer; }
 .toolbar { display: grid; gap: 0.75rem; }
 h1 { margin: 0; font-size: 1.5rem; color: #007a6e; }
 h1 small { font-size: 0.8rem; color: #5b6770; }
-.token { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.token input { flex: 1; min-width: 14rem; padding: 0.4rem; font: inherit; }
 </style>
