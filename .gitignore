@@ -1,0 +1,40 @@
+# OpenCode: configuracion local, indices y archivos temporales
+.opencode/
+opencode.json
+opencode.jsonc
+
+# Dependencias y compilaciones del frontend
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Binarios y resultados de pruebas
+bin/
+coverage/
+coverage.out
+*.test
+
+# Variables de entorno (conservar las plantillas)
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.template
+
+# Logs y archivos temporales
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Configuracion local de editores
+.idea/
+.vscode/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini
